@@ -1,0 +1,102 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import QuoteButton from '../components/QuoteButton';
+import { getSupabase } from '../lib/supabase';
+
+let products: any[] = [];
+let categories: any[] = [];
+let dataError = false;
+try {
+  const sb = getSupabase();
+  const [p, c] = await Promise.all([
+    sb.from('products').select('id, name, slug, code, short_description, base_price, price_label, is_customizable, categories(name, slug), product_images(id, image_url, alt_text, is_primary, sort_order)').eq('status', 'published').order('created_at', { ascending: false }).limit(100),
+    sb.from('categories').select('id, name, slug').eq('is_active', true).order('sort_order')
+  ]);
+  if (p.error || c.error) dataError = true;
+  products = p.data ?? [];
+  categories = c.data ?? [];
+} catch { dataError = true; }
+const formatPrice = (n: number | null) => n == null ? 'Cotizar' : `Desde $${n.toLocaleString('es-CL')}`;
+---
+<BaseLayout title="Manfr3d.cl | Ideas que toman forma" description="Accesorios funcionales, decoración y productos personalizados impresos en 3D.">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="eyebrow-dot"></span> DISEÑO · IMPRESIÓN 3D · PERSONALIZACIÓN</p>
+      <h1>Ideas que<br/><em>toman forma.</em></h1>
+      <p class="hero-description">Objetos útiles, detalles únicos y soluciones hechas a tu medida. Descubre el catálogo y cotiza tu próximo favorito.</p>
+      <div class="hero-actions"><a class="primary-button" href="#catalogo">Explorar catálogo <span>↓</span></a><a class="text-link" href="#como-funciona">Cómo funciona ↗</a></div>
+      <div class="hero-note"><span class="note-mark">✳</span><span>Fabricación bajo pedido<br/><strong>Hecho para ti, no en serie.</strong></span></div>
+    </div>
+    <div class="hero-art" aria-label="Composición decorativa de objetos impresos en 3D">
+      <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+      <div class="art-card card-back"><div class="mini-vase"></div><span>OBJETOS COTIDIANOS, OTRA FORMA.</span></div>
+      <div class="art-card card-front"><div class="sculpture"><div class="heart">♡</div><div class="sculpture-base"></div></div><div class="art-caption"><span>01 / COLECCIÓN</span><strong>Pequeñas ideas.<br/>Grandes detalles.</strong></div></div>
+      <div class="art-sticker">DISEÑADO<br/>PARA USAR <span>✳</span></div>
+    </div>
+  </section>
+  <section id="catalogo" class="catalog-section">
+    <div class="section-heading"><div><p class="eyebrow">EXPLORA LAS IDEAS</p><h2>Encuentra algo <em>especial.</em></h2></div><p>Una selección de objetos impresos en 3D. ¿Tienes otra idea? También podemos trabajar a partir de tu referencia.</p></div>
+    <div class="category-row">
+      <button class="category-chip active" data-category="all">Todo</button>
+      {categories.map((c: any) => <button class="category-chip" data-category={c.slug}>{c.name}</button>)}
+    </div>
+    <div class="catalog-tools"><label class="search-box"><span>⌕</span><input id="search" type="search" placeholder="Buscar productos..." aria-label="Buscar productos"/></label><span class="result-count">{products.length} productos</span></div>
+    {dataError && <div class="notice">No se pudo cargar el catálogo. Comprueba las variables de Supabase y que hayas ejecutado la migración SQL.</div>}
+    {products.length === 0 && !dataError && <div class="empty-state"><span>✳</span><h3>Estamos preparando las primeras ideas.</h3><p>Pronto encontrarás aquí objetos útiles, decoración y productos personalizados.</p><a href="/admin/login">Administrar catálogo ↗</a></div>}
+    <div class="product-grid" id="product-grid">
+      {products.map((p: any, i: number) => {
+        const image = (p.product_images ?? []).sort((a: any,b: any) => Number(b.is_primary)-Number(a.is_primary) || a.sort_order-b.sort_order)[0];
+        return <article class="product-card" data-name={`${p.name} ${p.short_description ?? ''}`.toLowerCase()} data-category={p.categories?.slug ?? ''}>
+          <a class="product-image" href={`/productos/${p.slug}`}>
+            {image ? <img src={image.image_url} alt={image.alt_text || p.name} loading="lazy"/> : <div class="image-placeholder"><span>m3d.</span><small>IMPRIMIDO EN 3D</small></div>}
+            {p.is_customizable && <span class="image-tag">Personalizable</span>}
+          </a>
+          <div class="product-info"><div><span class="product-category">{p.categories?.name ?? 'Colección Manfr3d'}</span><h3><a href={`/productos/${p.slug}`}>{p.name}</a></h3><p>{p.short_description ?? 'Un objeto impreso en 3D, listo para personalizar.'}</p></div><div class="product-bottom"><strong>{p.price_label || formatPrice(p.base_price)}</strong><a href={`/productos/${p.slug}`} aria-label={`Ver ${p.name}`}>Ver detalle ↗</a></div></div>
+        </article>;
+      })}
+    </div>
+  </section>
+  <section id="como-funciona" class="how-section"><div><p class="eyebrow">SENCILLO, DE PRINCIPIO A FIN</p><h2>De una idea<br/><em>a algo real.</em></h2></div><div class="steps"><div><span>01</span><strong>Encuentra tu favorito</strong><p>Explora el catálogo y elige el objeto que te gustaría tener.</p></div><div><span>02</span><strong>Cuéntanos tu idea</strong><p>Selecciona opciones y envíanos tu consulta por WhatsApp.</p></div><div><span>03</span><strong>Lo hacemos realidad</strong><p>Confirmamos precio, materiales, personalización y plazo.</p></div></div></section>
+  <section class="custom-cta"><div><p class="eyebrow">¿NO ENCUENTRAS LO QUE BUSCAS?</p><h2>Tu idea también<br/><em>puede imprimirse.</em></h2><p>Envíanos una referencia o cuéntanos qué necesitas. Evaluaremos las posibilidades de fabricación.</p></div><a class="outline-button" href={`https://wa.me/${(import.meta.env.PUBLIC_WHATSAPP_NUMBER || '').replace(/\D/g, '')}?text=${encodeURIComponent('Hola, tengo una idea para imprimir en 3D y quisiera consultar si es posible fabricarla.')}`} target="_blank" rel="noopener noreferrer">Consultar una idea ↗</a></section>
+  <script>
+    const search = document.querySelector<HTMLInputElement>('#search');
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('.product-card'));
+    const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('.category-chip'));
+    const count = document.querySelector<HTMLElement>('.result-count');
+    let selected = 'all';
+    function filterProducts() {
+      const q = (search?.value || '').trim().toLowerCase();
+      let visible = 0;
+      cards.forEach(card => {
+        const matchText = (card.dataset.name || '').includes(q);
+        const matchCategory = selected === 'all' || card.dataset.category === selected;
+        card.hidden = !(matchText && matchCategory);
+        if (!card.hidden) visible++;
+      });
+      if (count) count.textContent = `${visible} productos`;
+    }
+    search?.addEventListener('input', filterProducts);
+    chips.forEach(chip => chip.addEventListener('click', () => {
+      selected = chip.dataset.category || 'all';
+      chips.forEach(c => c.classList.toggle('active', c === chip));
+      filterProducts();
+    }));
+  </script>
+  <style>
+    .hero{padding:clamp(55px,8vw,112px) clamp(20px,8vw,120px) 80px;display:grid;grid-template-columns:1.03fr .97fr;align-items:center;gap:5vw;overflow:hidden}
+    .eyebrow{font-size:.7rem;font-weight:700;letter-spacing:.16em;color:#6b7865;margin:0 0 22px;display:flex;align-items:center;gap:9px}.eyebrow-dot{width:7px;height:7px;background:#71936a;border-radius:50%}
+    h1,h2{font-family:Manrope,sans-serif;letter-spacing:-.065em;line-height:.99;margin:0;font-weight:600}h1{font-size:clamp(3.5rem,7.4vw,7rem)}h1 em,h2 em{font-weight:500;color:#71876a;font-family:Georgia,serif;letter-spacing:-.07em}
+    .hero-description{max-width:450px;line-height:1.8;color:#656b61;font-size:1.05rem;margin:26px 0 30px}
+    .hero-actions{display:flex;align-items:center;gap:25px;flex-wrap:wrap}.primary-button,.outline-button{display:inline-flex;align-items:center;gap:18px;padding:15px 20px;border-radius:999px;background:#263126;color:white;font-weight:600;font-size:.9rem}.text-link{font-size:.9rem;font-weight:600}
+    .hero-note{display:flex;gap:12px;align-items:center;color:#858b80;font-size:.8rem;line-height:1.7;margin-top:48px}.hero-note strong{color:#3d463a;font-weight:600}.note-mark{display:grid;place-items:center;width:38px;height:38px;background:#e5eadf;border-radius:50%;color:#526a4b;font-size:1.2rem}
+    .hero-art{position:relative;min-height:510px;display:grid;place-items:center}.art-orbit{position:absolute;border:1px solid #e0e5d9;border-radius:50%;width:440px;height:440px}.orbit-two{width:350px;height:350px;border-style:dashed}
+    .art-card{position:absolute;border-radius:190px 190px 18px 18px;overflow:hidden}.card-back{width:230px;height:340px;background:#dfe5d8;right:7%;top:8%;transform:rotate(7deg);display:flex;align-items:center;justify-content:center}.card-back span{position:absolute;bottom:23px;font-size:.55rem;letter-spacing:.13em;color:#52634d}.mini-vase{width:90px;height:140px;background:repeating-linear-gradient(90deg,#aab99f 0 4px,#c4cfbb 4px 8px);border-radius:35% 35% 25% 25% / 18% 18% 10% 10%;position:relative;box-shadow:inset -12px 0 20px #899a8060}.mini-vase:before{content:"";position:absolute;top:-12px;left:25px;width:40px;height:30px;border-radius:50%;background:#8f9f86;border:6px solid #b9c7af}
+    .card-front{width:265px;height:385px;background:#e9d9c5;left:7%;bottom:2%;transform:rotate(-5deg);box-shadow:0 25px 70px #37452c18}.sculpture{position:absolute;top:35px;left:0;right:0;height:235px;display:grid;place-items:center}.heart{font-family:Georgia,serif;font-size:11rem;line-height:1;color:#a6b69a;text-shadow:5px 8px 0 #879b7c;transform:rotate(-8deg)}.sculpture-base{position:absolute;bottom:7px;width:115px;height:22px;border-radius:50%;background:#b4a58e;box-shadow:0 10px 0 #a0927c}.art-caption{position:absolute;bottom:25px;left:24px}.art-caption span{font-size:.58rem;letter-spacing:.15em;color:#777264;display:block;margin-bottom:10px}.art-caption strong{font-family:Manrope,sans-serif;font-size:1.35rem;letter-spacing:-.04em;line-height:1.2}
+    .art-sticker{position:absolute;right:0;bottom:13%;background:#6e8564;color:white;padding:16px 18px;border-radius:50%;width:108px;height:108px;display:grid;place-content:center;text-align:center;font-size:.62rem;font-weight:700;letter-spacing:.08em;transform:rotate(9deg);line-height:1.5}.art-sticker span{font-size:1.3rem}
+    .catalog-section{padding:80px clamp(20px,8vw,120px) 105px;background:#fff}.section-heading{display:flex;justify-content:space-between;align-items:end;gap:30px}.section-heading h2,.how-section h2,.custom-cta h2{font-size:clamp(2.7rem,5vw,4.6rem)}.section-heading>p{max-width:360px;color:#73786f;line-height:1.8;font-size:.92rem;margin:0 0 5px}.category-row{display:flex;gap:9px;flex-wrap:wrap;margin:38px 0 24px}.category-chip{border:1px solid #e4e6dd;border-radius:999px;padding:10px 16px;background:transparent;color:#666d61;cursor:pointer;font-size:.83rem}.category-chip.active,.category-chip:hover{background:#263126;color:white;border-color:#263126}.catalog-tools{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}.search-box{width:min(370px,75%);display:flex;align-items:center;gap:10px;border:1px solid #e3e5dc;border-radius:999px;padding:0 16px;height:46px;color:#858b80}.search-box span{font-size:1.6rem}.search-box input{border:0;outline:0;background:transparent;width:100%;color:#20251f;font-size:.88rem}.result-count{font-size:.8rem;color:#83897e}.product-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:35px 22px}.product-card[hidden]{display:none}.product-image{position:relative;display:block;aspect-ratio:4/4.6;border-radius:9px;overflow:hidden;background:#f0f1eb}.product-image img{width:100%;height:100%;object-fit:cover;transition:transform .45s}.product-image:hover img{transform:scale(1.04)}.image-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#a1ab98;background:linear-gradient(140deg,#f1f2ec,#e5e9df)}.image-placeholder span{font-family:Manrope,sans-serif;font-size:3rem;font-weight:800;letter-spacing:-.1em}.image-placeholder small{font-size:.55rem;letter-spacing:.15em}.image-tag{position:absolute;top:13px;left:13px;background:#f7f7f2eF;padding:7px 10px;border-radius:999px;font-size:.68rem}.product-info{padding:17px 2px 0;display:flex;flex-direction:column;justify-content:space-between;gap:19px;min-height:160px}.product-category{font-size:.68rem;color:#75856d;letter-spacing:.04em}.product-info h3{font-family:Manrope,sans-serif;font-size:1.12rem;letter-spacing:-.03em;margin:7px 0}.product-info p{color:#7a7f76;font-size:.83rem;line-height:1.65;margin:0}.product-bottom{display:flex;justify-content:space-between;align-items:center;gap:10px}.product-bottom strong{font-size:.9rem}.product-bottom a{font-size:.78rem;font-weight:600}.empty-state{text-align:center;padding:75px 20px;background:#f7f7f2;border-radius:12px}.empty-state>span{font-size:2rem;color:#7a9271}.empty-state h3{font-family:Manrope,sans-serif;font-size:1.5rem;letter-spacing:-.04em}.empty-state p{color:#747a70}.empty-state a{display:inline-block;margin-top:12px;font-weight:600;font-size:.9rem}.notice{background:#fff2d8;padding:15px;border-radius:8px;margin-bottom:20px;color:#735821}
+    .how-section{padding:95px clamp(20px,8vw,120px);display:grid;grid-template-columns:1fr 1fr;gap:8vw}.steps{display:grid;gap:26px}.steps>div{display:grid;grid-template-columns:42px 1fr;column-gap:15px;border-bottom:1px solid #e3e6dc;padding-bottom:22px}.steps span{grid-row:span 2;color:#809477;font-size:.8rem}.steps strong{font-size:1rem}.steps p{color:#73796f;font-size:.86rem;line-height:1.7;margin:8px 0 0}
+    .custom-cta{margin:0 clamp(20px,6vw,88px) 80px;background:#e4e9de;border-radius:12px;padding:clamp(30px,5vw,65px);display:flex;align-items:center;justify-content:space-between;gap:35px}.custom-cta p:not(.eyebrow){max-width:450px;color:#697264;line-height:1.8}.outline-button{background:transparent;color:#263126;border:1px solid #9ba995;white-space:nowrap}
+    @media(max-width:900px){.hero{grid-template-columns:1fr;padding-top:60px}.hero-art{min-height:450px;max-width:550px;width:100%;margin:auto}.section-heading{align-items:start;flex-direction:column}.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.how-section{grid-template-columns:1fr;gap:45px}}
+    @media(max-width:520px){.hero{padding-bottom:50px}.hero-art{min-height:380px;transform:scale(.88);transform-origin:center}.card-front{left:0;width:235px;height:350px}.card-back{right:0;width:200px;height:300px}.art-orbit{width:330px;height:330px}.orbit-two{width:270px;height:270px}.heart{font-size:9rem}.product-grid{gap:26px 13px}.product-info{min-height:180px}.product-info h3{font-size:1rem}.product-info p{font-size:.78rem}.product-bottom{align-items:flex-start;flex-direction:column}.custom-cta{align-items:flex-start;flex-direction:column}.catalog-section{padding-top:60px;padding-bottom:70px}}
+  </style>
+</BaseLayout>

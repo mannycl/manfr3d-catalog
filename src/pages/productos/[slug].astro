@@ -1,0 +1,51 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import QuoteForm from '../../components/QuoteForm';
+import { getSupabase } from '../../lib/supabase';
+
+export const prerender = false;
+const slug = Astro.params.slug;
+let product: any = null;
+let relatedImages: any[] = [];
+let relatedVariants: any[] = [];
+let category: any = null;
+try {
+  const sb = getSupabase();
+  const { data } = await sb.from('products').select('*, categories(name, slug), product_images(*)').eq('slug', slug).eq('status','published').maybeSingle();
+  product = data;
+  if (product) {
+    relatedImages = (product.product_images ?? []).sort((a:any,b:any) => Number(b.is_primary)-Number(a.is_primary) || a.sort_order-b.sort_order);
+    const { data: variants } = await sb.from('product_variants').select('*').eq('product_id', product.id).eq('is_active', true).order('sort_order');
+    relatedVariants = variants ?? [];
+    category = product.categories;
+  }
+} catch {}
+if (!product) Astro.response.status = 404;
+const price = product?.base_price == null ? 'Consultar precio' : `Desde $${product.base_price.toLocaleString('es-CL')}`;
+---
+<BaseLayout title={product ? `${product.name} | Manfr3d.cl` : 'Producto no encontrado | Manfr3d.cl'} description={product?.short_description ?? 'Producto impreso en 3D bajo pedido.'}>
+  {product ? <section class="detail">
+    <a class="back" href="/#catalogo">← Volver al catálogo</a>
+    <div class="detail-grid">
+      <div class="gallery">
+        {relatedImages.length ? relatedImages.map((img:any) => <img src={img.image_url} alt={img.alt_text || product.name} />) : <div class="image-placeholder">manfr3d.</div>}
+      </div>
+      <div class="detail-copy">
+        <p class="eyebrow">{category?.name ?? 'Colección Manfr3d'} · {product.code}</p>
+        <h1>{product.name}</h1>
+        <p class="short">{product.short_description}</p>
+        <div class="price">{product.price_label || price}</div>
+        {product.description && <div class="description">{product.description}</div>}
+        {product.material && <p class="meta"><strong>Material:</strong> {product.material}</p>}
+        {product.dimensions && <p class="meta"><strong>Dimensiones:</strong> {product.dimensions}</p>}
+        {product.is_customizable ? <p class="custom-note">✳ Este producto permite personalización. Cuéntanos qué tienes en mente.</p> : null}
+        <QuoteForm client:load product={{name:product.name,code:product.code,base_price:product.base_price,variants:relatedVariants}} />
+        <p class="fine-print">El precio publicado es orientativo. Confirmaremos el valor final, las opciones disponibles y el plazo antes de fabricar.</p>
+      </div>
+    </div>
+  </section> : <section class="not-found"><h1>Producto no encontrado</h1><p>Puede que ya no esté disponible.</p><a href="/">Volver al catálogo</a></section>}
+</BaseLayout>
+<style>
+  .detail{padding:35px clamp(20px,7vw,100px) 90px}.back{font-size:.86rem;color:#72796e;display:inline-block;margin-bottom:30px}.detail-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(35px,7vw,95px)}.gallery{display:grid;grid-template-columns:1fr;gap:12px;align-content:start}.gallery img{width:100%;max-height:650px;object-fit:cover;border-radius:10px;background:#eceee7}.image-placeholder{min-height:450px;display:grid;place-items:center;background:#e9ece3;color:#809477;font-size:3rem}.detail-copy{padding-top:15px}.eyebrow{font-size:.7rem;letter-spacing:.12em;color:#71836a;font-weight:700}.detail-copy h1,.not-found h1{font-family:Manrope,sans-serif;font-size:clamp(2.6rem,5vw,4.7rem);letter-spacing:-.07em;line-height:1.02;margin:15px 0}.short,.description{color:#6f756b;line-height:1.8}.price{font-family:Manrope,sans-serif;font-weight:700;font-size:1.4rem;margin:28px 0}.meta{font-size:.88rem;color:#676e63}.custom-note{padding:13px;background:#e7ecdf;border-radius:7px;color:#4f6248;font-size:.86rem;line-height:1.6}.fine-print{font-size:.75rem;line-height:1.6;color:#858b80;margin-top:18px}.not-found{text-align:center;padding:100px 20px}.not-found a{font-weight:700}
+  @media(max-width:760px){.detail-grid{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.gallery img{height:240px}.detail-copy{padding-top:0}}
+</style>
